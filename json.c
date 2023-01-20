@@ -4,6 +4,15 @@
 #define ASCII_TRUE 0x65757274
 #define ASCII_FALSE 0x736c6166
 
+static bool istokenformat(string, int);
+
+JObject *JsonDeserialize(string jsonstr) {
+    if(jsonstr[0] != '{') return NULL;
+    int len = strlen(jsonstr);
+    if(jsonstr[len - 1] != '}') return NULL;
+    if(!istokenformat(jsonstr, len)){}
+}
+
 static bool istokenformat(string jsonstr, int len) {
     bool eol;
     bool symbolsFound[3] = {false, false, false};
@@ -72,10 +81,4 @@ static bool istokenformat(string jsonstr, int len) {
     }
     if(marker == 4) return true;
     return false;
-}
-JObject *JsonDeserialize(string jsonstr) {
-    if(jsonstr[0] != '{') return NULL;
-    int len = strlen(jsonstr);
-    if(jsonstr[len - 1] != '}') return NULL;
-    if(!istokenformat(jsonstr, len)){}
 }
