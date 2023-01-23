@@ -20,18 +20,22 @@ JObject *JsonDeserialize(string jsonstr) {
 
 static string extracttokenAt(string jsonster, int *index) {
     int count = 0;
+    if(jsonster[*index] == '{') *index = *index + 1;
     string tk = (string)calloc(16,sizeof(char));
     while (jsonster[*index] != ',' && jsonster[*index] !='}') {
         if(jsonster[*index] == '\0') {
             free(tk);
             return NULL;
         }
-        if(count % 16 == 0) {
+        if(count % 16 == 0 && count > 0) {
             tk = (string)realloc(tk, sizeof(char)*(16+count));
         }
         tk[count] = jsonster[*index];
         count++;
+        *index = *index + 1;
     }
+    if(jsonster[*index] == '}' && jsonster[(*index)+1] == ',')
+        tk[count] = jsonster[*index];
     *index = *index + 1;
     return tk;
 }
@@ -110,7 +114,7 @@ static JToken *ParseJTokenFromString(string tkstr) {
 static TokenList *NewTokenList() {
     static const unsigned char tokenListInitialSize = 16;
     TokenList *tklst = (TokenList*)calloc(1, sizeof(TokenList));
-    tklst->tokens = (JToken*)calloc(tokenListInitialSize, sizeof(JToken));
+    tklst->tokens = (JToken**)calloc(tokenListInitialSize, sizeof(JToken*));
     tklst->count = 0;
     tklst->size = 16;
 }
