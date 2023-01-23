@@ -23,6 +23,6 @@ typedef struct {
     unsigned int jtoken_list_count;
 } JObject;
 
-extern JObject *JsonDeserialize(string jsonstr);
+extern JObject *JsonDeserialize(string);
 
 #endif

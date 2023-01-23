@@ -4,16 +4,17 @@
 #define ASCII_TRUE 0x65757274
 #define ASCII_FALSE 0x736c6166
 
-static bool istokenformat(string, int);
+static bool istokenformat(string);
 
 JObject *JsonDeserialize(string jsonstr) {
     if(jsonstr[0] != '{') return NULL;
     int len = strlen(jsonstr);
     if(jsonstr[len - 1] != '}') return NULL;
-    if(!istokenformat(jsonstr, len)){}
+
+    // if(!istokenformat(jsonstr, len)){}
 }
 
-static bool istokenformat(string jsonstr, int len) {
+static bool istokenformat(string jsonstr) {
     bool eol;
     bool symbolsFound[3] = {false, false, false};
     int index = 0, marker = 0;
@@ -24,11 +25,11 @@ static bool istokenformat(string jsonstr, int len) {
             marker++;
         else if(*((unsigned short*)(&jsonstr[index])) == TOKEN_KEY_FINAL && marker == 1) {
             if((*((unsigned short*)(&jsonstr[index + 1])) != 0x7b3a &&
-               *((unsigned short*)(&jsonstr[index + 1])) != 0x5b3a &&
-               *((unsigned short*)(&jsonstr[index + 1])) != 0x223a &&
-               *((unsigned short*)(&jsonstr[index + 1])) != 0x743a &&
-               *((unsigned short*)(&jsonstr[index + 1])) != 0x663a) &&
-               (jsonstr[index + 2] < 0x30 || jsonstr[index + 2] > 0x39)) marker = -1;
+                *((unsigned short*)(&jsonstr[index + 1])) != 0x5b3a &&
+                *((unsigned short*)(&jsonstr[index + 1])) != 0x223a &&
+                *((unsigned short*)(&jsonstr[index + 1])) != 0x743a &&
+                *((unsigned short*)(&jsonstr[index + 1])) != 0x663a) &&
+                (jsonstr[index + 2] < 0x30 || jsonstr[index + 2] > 0x39)) marker = -1;
             else {
                 marker++;
                 index ++;
