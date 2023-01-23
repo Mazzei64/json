@@ -7,22 +7,29 @@
 typedef char* string;
 typedef unsigned char byte;
 typedef enum {false = 0, true} bool;
+typedef enum {STRING = 0, JSON_OBJ, ARRAY, INTEGER, DECIMAL, BOOLEAN} jsontype;
 
 typedef struct {
     string key;
     void *value;
-    string value_type;
+    jsontype value_type;
     unsigned int key_len;
     unsigned int value_byte_count;
 } JToken;
 
 typedef struct {
-    // JObject **jobj_list;
-    JToken **jtoken_list;
+    JToken **tokens;
+    unsigned int count;
+    unsigned int size;
+} TokenList;
+
+typedef struct {
+    TokenList *jtoken_list;
     unsigned int jobj_list_count;
     unsigned int jtoken_list_count;
 } JObject;
 
 extern JObject *JsonDeserialize(string);
+extern TokenList *GetTokenList(string);
 
 #endif
