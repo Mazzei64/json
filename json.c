@@ -1,6 +1,7 @@
 #include"json.h"
 
 #define TOKEN_KEY_FINAL 0x3a22
+#define TOKEN_INIT 0x222c
 #define ASCII_TRUE 0x65757274
 #define ASCII_FALSE 0x736c6166
 
@@ -17,26 +18,122 @@ JObject *JsonDeserialize(string jsonstr) {
 
 // ------------------------------------------------------------------
 
-
-static string extracttokenAt(string jsonster, int *index) {
+static int findkey(string jsonstr, string token, int *index){
+    bool flag = true;
     int count = 0;
-    if(jsonster[*index] == '{') *index = *index + 1;
-    string tk = (string)calloc(16,sizeof(char));
-    while (jsonster[*index] != ',' && jsonster[*index] !='}') {
-        if(jsonster[*index] == '\0') {
-            free(tk);
-            return NULL;
-        }
+    while (flag) {
         if(count % 16 == 0 && count > 0) {
-            tk = (string)realloc(tk, sizeof(char)*(16+count));
+            token = (string)realloc(token, sizeof(char)*(16+count));
         }
-        tk[count] = jsonster[*index];
+        if(*((unsigned short*)(&jsonstr[*index])) == TOKEN_KEY_FINAL){
+            token[count] = jsonstr[*index];
+            count++;
+            *index = *index + 1;
+            flag = false;
+        }
+        token[count] = jsonstr[*index];
         count++;
         *index = *index + 1;
     }
-    if(jsonster[*index] == '}' && jsonster[(*index)+1] == ',')
-        tk[count] = jsonster[*index];
-    *index = *index + 1;
+    flag = true;
+    return count;
+}
+
+static void findvalue(string jsonstr, string token, int *index, int count) {
+    bool flag = true, llevel = false;
+    int marker = 1;
+    while (flag) {
+        if(jsonstr[*index] == '{') {
+            token[count] = jsonstr[*index];
+            *index = *index + 1; 
+            count++;
+            while (true) {
+                if(jsonstr[*index] == '{' && !llevel) llevel = true;
+                else if(jsonstr[*index] == '}' && llevel) llevel = false;
+                else if(jsonstr[*index] == '}' && !llevel) {
+                    token[count] = jsonstr[*index];
+                    *index = *index + 1; 
+                    count++;
+                    break;
+                }
+                token[count] = jsonstr[*index];
+                *index = *index + 1; 
+                count++;
+            }
+            break;
+        }
+        else if(jsonstr[*index] == '[') {
+            token[count] = jsonstr[*index];
+            *index = *index + 1; 
+            count++;
+            while (true) {
+                if(jsonstr[*index] == '[' && !llevel) llevel = true;
+                else if(jsonstr[*index] == ']' && llevel) llevel = false;
+                else if(jsonstr[*index] == ']' && !llevel) {
+                    token[count] = jsonstr[*index];
+                    *index = *index + 1; 
+                    count++;
+                    break;
+                }
+                token[count] = jsonstr[*index];
+                *index = *index + 1; 
+                count++;
+            }
+            break;
+        }
+        else if(jsonstr[*index] == '\"') {
+            token[count] = jsonstr[*index];
+            *index = *index + 1; 
+            count++;
+            while (jsonstr[*index] != '\"') {
+                token[count] = jsonstr[*index];
+                *index = *index + 1; 
+                count++;
+            }
+            token[count] = jsonstr[*index];
+            *index = *index + 1; 
+            count++;
+            break;
+        }
+        else if(*((unsigned int*)&jsonstr[*index]) == ASCII_TRUE) {
+                    *((unsigned int*)&jsonstr[*index]) = ASCII_TRUE;
+                    *index = *index + 4;
+                    break;
+        }
+        else if (*((unsigned int*)&jsonstr[*index]) == ASCII_FALSE) {
+            token[count] = jsonstr[*index];
+            *index = *index + 1; 
+            count++;
+            *((unsigned int*)&jsonstr[*index]) = ASCII_FALSE;
+            *index = *index + 4;
+            break;
+        }
+        else if(jsonstr[*index] >= 0x30 && jsonstr[*index] <= 0x39) {
+            token[count] = jsonstr[*index];
+            *index = *index + 1; 
+            count++;
+            while (jsonstr[*index] != ',' && jsonstr[*index] != '}') {
+                token[count] = jsonstr[*index];
+                *index = *index + 1; 
+                count++;
+            }
+            break;
+        }
+    }
+    
+}
+static string extracttokenAt(string jsonstr, int *index) {
+    bool flag = true;
+    int count = 0;
+    string tk = (string)calloc(16,sizeof(char));
+
+    if(jsonstr[*index] == '{') *index = *index + 1;
+
+    //get key
+    count = findkey(jsonstr, tk, index);
+
+    findvalue(jsonstr, tk, index, count);
+    
     return tk;
 }
 static void FreeTokenList(TokenList *tklst){
