@@ -4,8 +4,20 @@
 #define TOKEN_INIT 0x222c
 #define ASCII_TRUE 0x65757274
 #define ASCII_FALSE 0x736c6166
+#define CHECKTK_OVERFLOW(count) if(count % DEFAULT_TOKEN_LEN == 0 && count > 0) {                  \
+            token = (string)realloc(token, sizeof(char)*(DEFAULT_TOKEN_LEN+count));         \
+        }
+
+static const unsigned int DEFAULT_TOKEN_LEN = 16;
 
 static bool istokenformat(string);
+static int findkey(string, string, int *);
+static void findvalue(string, string, int *, int);
+static string extracttokenAt(const string __restrict__ , int *);
+static void FreeTokenList(TokenList *);
+static JToken *ParseJTokenFromString(string);
+static TokenList *NewTokenList();
+static void AppendTokenList(TokenList*, JToken*);
 
 JObject *JsonDeserialize(string jsonstr) {
     TokenList *tokenlst;
@@ -18,13 +30,105 @@ JObject *JsonDeserialize(string jsonstr) {
 
 // ------------------------------------------------------------------
 
+
+TokenList *GetTokenList(string jsonstr) {
+    int index = 1, count = 0;
+    string tk = NULL;
+    JToken *token = NULL;
+    TokenList *tklst = NewTokenList();
+    while (jsonstr[index] != '\0') {
+        if((tk = extracttokenAt(jsonstr, &index)) == NULL) {
+            FreeTokenList(tklst);
+            return NULL;
+        }
+        if(!istokenformat(tk)) {
+            FreeTokenList(tklst);
+            return NULL;
+        }
+        token = ParseJTokenFromString(tk);
+        AppendTokenList(tklst, token);
+    }
+    return tklst;
+}
+
+// ------------------------------------------------------------------
+
+static bool istokenformat(string jsonstr) {
+    bool eol;
+    bool symbolsFound[3] = {false, false, false};
+    int index = 0, marker = 0;
+    while (jsonstr[index] != '\0') {
+        eol = jsonstr[index + 1] == '\0' && marker == 3;
+        // key section
+        if(jsonstr[index] == '\"' && marker == 0)
+            marker++;
+        else if(*((unsigned short*)(&jsonstr[index])) == TOKEN_KEY_FINAL && marker == 1) {
+            if((*((unsigned short*)(&jsonstr[index + 1])) != 0x7b3a &&
+                *((unsigned short*)(&jsonstr[index + 1])) != 0x5b3a &&
+                *((unsigned short*)(&jsonstr[index + 1])) != 0x223a &&
+                *((unsigned short*)(&jsonstr[index + 1])) != 0x743a &&
+                *((unsigned short*)(&jsonstr[index + 1])) != 0x663a) &&
+                (jsonstr[index + 2] < 0x30 || jsonstr[index + 2] > 0x39)) marker = -1;
+            else {
+                marker++;
+                index++;
+            }
+        }
+        // value section
+        else if(jsonstr[index] == '\"' && marker == 2){
+            marker++;
+            symbolsFound[0] = true;
+        }
+        else if(jsonstr[index] == '{' && marker == 2){
+            marker++;
+            symbolsFound[1] = true;
+        }
+        else if(jsonstr[index] == '[' && marker == 2){
+            marker++;
+            symbolsFound[2] = true;
+        }
+        else if (jsonstr[index] >= 0x30 && jsonstr[index] <= 0x39 && marker == 2){
+            index++;
+            while (jsonstr[index] != '\0') {
+                if((jsonstr[index] < 0x30 || jsonstr[index] > 0x39) && jsonstr[index] != '.') marker = -1;
+                index++;
+            }
+            if(marker == 2) marker = 4;
+            index--;
+        }
+        else if(*((unsigned int*)(&jsonstr[index])) == ASCII_TRUE && marker == 2){
+            if(jsonstr[index + sizeof(unsigned int)] == '\0') {
+                index += sizeof(unsigned int) - 1;
+                marker = 4;
+            }
+            else
+                marker = -1;
+
+        }
+        else if(*((unsigned int*)(&jsonstr[index])) == ASCII_FALSE && marker == 2){
+            if(jsonstr[index + sizeof(unsigned int)] != 'e') marker = -1;
+            else if(jsonstr[index + sizeof(unsigned int) + 1] != '\0') marker = -1;
+            else {
+                index += sizeof(unsigned int);
+                marker = 4;
+            }
+        }
+        else if(jsonstr[index] == '\"' && symbolsFound[0] && eol) marker++;
+        else if(jsonstr[index] == '}' && symbolsFound[1] && eol) marker++;
+        else if(jsonstr[index] == ']' && symbolsFound[2] && eol) marker++;
+
+        index++;
+    }
+    if(marker == 4) return true;
+    return false;
+}
+
+
 static int findkey(string jsonstr, string token, int *index){
     bool flag = true;
     int count = 0;
     while (flag) {
-        if(count % 16 == 0 && count > 0) {
-            token = (string)realloc(token, sizeof(char)*(16+count));
-        }
+        CHECKTK_OVERFLOW(count)
         if(*((unsigned short*)(&jsonstr[*index])) == TOKEN_KEY_FINAL){
             token[count] = jsonstr[*index];
             count++;
@@ -44,16 +148,22 @@ static void findvalue(string jsonstr, string token, int *index, int count) {
     int marker = 1;
     while (flag) {
         if(jsonstr[*index] == '{') {
+            CHECKTK_OVERFLOW(count)
             token[count] = jsonstr[*index];
             *index = *index + 1; 
             count++;
             while (true) {
+                CHECKTK_OVERFLOW(count)
                 if(jsonstr[*index] == '{' && !llevel) llevel = true;
                 else if(jsonstr[*index] == '}' && llevel) llevel = false;
                 else if(jsonstr[*index] == '}' && !llevel) {
                     token[count] = jsonstr[*index];
                     *index = *index + 1; 
                     count++;
+                    break;
+                }
+                else if (jsonstr[*index] == '\0') {
+                    token[count] = jsonstr[*index];
                     break;
                 }
                 token[count] = jsonstr[*index];
@@ -63,16 +173,22 @@ static void findvalue(string jsonstr, string token, int *index, int count) {
             break;
         }
         else if(jsonstr[*index] == '[') {
+            CHECKTK_OVERFLOW(count)
             token[count] = jsonstr[*index];
             *index = *index + 1; 
             count++;
             while (true) {
+                CHECKTK_OVERFLOW(count)
                 if(jsonstr[*index] == '[' && !llevel) llevel = true;
                 else if(jsonstr[*index] == ']' && llevel) llevel = false;
                 else if(jsonstr[*index] == ']' && !llevel) {
                     token[count] = jsonstr[*index];
                     *index = *index + 1; 
                     count++;
+                    break;
+                }
+                else if (jsonstr[*index] == '\0') {
+                    token[count] = jsonstr[*index];
                     break;
                 }
                 token[count] = jsonstr[*index];
@@ -82,54 +198,76 @@ static void findvalue(string jsonstr, string token, int *index, int count) {
             break;
         }
         else if(jsonstr[*index] == '\"') {
+            CHECKTK_OVERFLOW(count)
             token[count] = jsonstr[*index];
             *index = *index + 1; 
             count++;
             while (jsonstr[*index] != '\"') {
+                CHECKTK_OVERFLOW(count)
                 token[count] = jsonstr[*index];
                 *index = *index + 1; 
                 count++;
+                if(jsonstr[*index] == '\0') {
+                    token[count] = jsonstr[*index];
+                    break;
+                }
             }
+            CHECKTK_OVERFLOW(count)
             token[count] = jsonstr[*index];
             *index = *index + 1; 
             count++;
             break;
         }
         else if(*((unsigned int*)&jsonstr[*index]) == ASCII_TRUE) {
+                    CHECKTK_OVERFLOW(count)
+                    token[count] = jsonstr[*index];
+                    *index = *index + 1; 
+                    count++;
                     *((unsigned int*)&jsonstr[*index]) = ASCII_TRUE;
                     *index = *index + 4;
+                    count +=4;
+                    CHECKTK_OVERFLOW(count)
                     break;
         }
         else if (*((unsigned int*)&jsonstr[*index]) == ASCII_FALSE) {
+            CHECKTK_OVERFLOW(count)
             token[count] = jsonstr[*index];
             *index = *index + 1; 
             count++;
             *((unsigned int*)&jsonstr[*index]) = ASCII_FALSE;
             *index = *index + 4;
+            count +4;
+            CHECKTK_OVERFLOW(count)
             break;
         }
         else if(jsonstr[*index] >= 0x30 && jsonstr[*index] <= 0x39) {
+            CHECKTK_OVERFLOW(count)
             token[count] = jsonstr[*index];
             *index = *index + 1; 
             count++;
             while (jsonstr[*index] != ',' && jsonstr[*index] != '}') {
+                CHECKTK_OVERFLOW(count)
                 token[count] = jsonstr[*index];
                 *index = *index + 1; 
                 count++;
+                if (jsonstr[*index] == '\0') {
+                    token[count] = jsonstr[*index];
+                    break;
+                }
             }
             break;
         }
     }
     
 }
-static string extracttokenAt(string jsonstr, int *index) {
+static string extracttokenAt(const string __restrict__ jsonstr, int *index) {
     bool flag = true;
     int count = 0;
+    int debug = strlen(jsonstr);
     string tk = (string)calloc(16,sizeof(char));
 
     if(jsonstr[*index] == '{') *index = *index + 1;
 
-    //get key
     count = findkey(jsonstr, tk, index);
 
     findvalue(jsonstr, tk, index, count);
@@ -221,95 +359,4 @@ static void AppendTokenList(TokenList *tklst, JToken *token) {
         tklst->tokens = (JToken**)realloc(tklst->tokens, sizeof(JToken*) * tklst->size);
     }
     tklst->tokens[tklst->count] = token;
-}
-TokenList *GetTokenList(string jsonstr) {
-    int index = 1, count = 0;
-    string tk = NULL;
-    JToken *token = NULL;
-    TokenList *tklst = NewTokenList();
-    while (jsonstr[index] != '\0') {
-        if((tk = extracttokenAt(jsonstr, &index)) == NULL) {
-            FreeTokenList(tklst);
-            return NULL;
-        }
-        if(!istokenformat(tk)) {
-            FreeTokenList(tklst);
-            return NULL;
-        }
-        token = ParseJTokenFromString(tk);
-        AppendTokenList(tklst, token);
-    }
-    return tklst;
-}
-
-// ------------------------------------------------------------------
-
-static bool istokenformat(string jsonstr) {
-    bool eol;
-    bool symbolsFound[3] = {false, false, false};
-    int index = 0, marker = 0;
-    while (jsonstr[index] != '\0') {
-        eol = jsonstr[index + 1] == '\0' && marker == 3;
-        // key section
-        if(jsonstr[index] == '\"' && marker == 0)
-            marker++;
-        else if(*((unsigned short*)(&jsonstr[index])) == TOKEN_KEY_FINAL && marker == 1) {
-            if((*((unsigned short*)(&jsonstr[index + 1])) != 0x7b3a &&
-                *((unsigned short*)(&jsonstr[index + 1])) != 0x5b3a &&
-                *((unsigned short*)(&jsonstr[index + 1])) != 0x223a &&
-                *((unsigned short*)(&jsonstr[index + 1])) != 0x743a &&
-                *((unsigned short*)(&jsonstr[index + 1])) != 0x663a) &&
-                (jsonstr[index + 2] < 0x30 || jsonstr[index + 2] > 0x39)) marker = -1;
-            else {
-                marker++;
-                index++;
-            }
-        }
-        // value section
-        else if(jsonstr[index] == '\"' && marker == 2){
-            marker++;
-            symbolsFound[0] = true;
-        }
-        else if(jsonstr[index] == '{' && marker == 2){
-            marker++;
-            symbolsFound[1] = true;
-        }
-        else if(jsonstr[index] == '[' && marker == 2){
-            marker++;
-            symbolsFound[2] = true;
-        }
-        else if (jsonstr[index] >= 0x30 && jsonstr[index] <= 0x39 && marker == 2){
-            index++;
-            while (jsonstr[index] != '\0') {
-                if((jsonstr[index] < 0x30 || jsonstr[index] > 0x39) && jsonstr[index] != '.') marker = -1;
-                index++;
-            }
-            if(marker == 2) marker = 4;
-            index--;
-        }
-        else if(*((unsigned int*)(&jsonstr[index])) == ASCII_TRUE && marker == 2){
-            if(jsonstr[index + sizeof(unsigned int)] == '\0') {
-                index += sizeof(unsigned int) - 1;
-                marker = 4;
-            }
-            else
-                marker = -1;
-
-        }
-        else if(*((unsigned int*)(&jsonstr[index])) == ASCII_FALSE && marker == 2){
-            if(jsonstr[index + sizeof(unsigned int)] != 'e') marker = -1;
-            else if(jsonstr[index + sizeof(unsigned int) + 1] != '\0') marker = -1;
-            else {
-                index += sizeof(unsigned int);
-                marker = 4;
-            }
-        }
-        else if(jsonstr[index] == '\"' && symbolsFound[0] && eol) marker++;
-        else if(jsonstr[index] == '}' && symbolsFound[1] && eol) marker++;
-        else if(jsonstr[index] == ']' && symbolsFound[2] && eol) marker++;
-
-        index++;
-    }
-    if(marker == 4) return true;
-    return false;
 }
