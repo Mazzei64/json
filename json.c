@@ -260,6 +260,34 @@ static void findvalue(string jsonstr, string token, int *index, int count) {
     }
     
 }
+
+static string filterJson(string jsonStr, int* len) {
+    int filteredIndex = 0;
+    bool llevel = false;
+    *len = strlen(jsonStr);
+    string filteredJson = (string)calloc(*len,sizeof(char));
+    for (int i = 0; i < *len; i++){
+        if(jsonStr[i] == '\"' && !llevel) {
+            llevel = true;
+            filteredJson[filteredIndex] = jsonStr[i];
+            filteredIndex++;
+            continue;
+        }
+        if(jsonStr[i] == '\"' && llevel) {
+            llevel = false;
+            filteredJson[filteredIndex] = jsonStr[i];
+            filteredIndex++;
+            continue;
+        }
+        if((jsonStr[i] == ' ' || jsonStr[i] == '\n' ||
+            jsonStr[i] == '\t' || jsonStr[i] == '\r' ||
+            jsonStr[i] == '\b') && !llevel) continue;
+        filteredJson[filteredIndex] = jsonStr[i];
+        filteredIndex++;
+    }
+    return filteredJson;
+}
+
 static string extracttokenAt(const string __restrict__ jsonstr, int *index) {
     bool flag = true;
     int count = 0;
@@ -282,7 +310,7 @@ static void FreeTokenList(TokenList *tklst){
 }
 
 static JToken *ParseJTokenFromString(string tkstr) {
-    int index = 1, valIndex = 0, tkstrLen = strlen(tkstr);
+    int index = 1, valIndex = 0, tkstrLen;
     bool isDecimal = false;
     byte *valueBuffer = (byte*)calloc(tkstrLen, sizeof(char));
     memset(valueBuffer, 0x00, sizeof(byte)*tkstrLen);
