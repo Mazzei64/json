@@ -13,6 +13,7 @@ static const unsigned int DEFAULT_TOKEN_LEN = 16;
 static bool istokenformat(string);
 static int findkey(string, string, int *);
 static void findvalue(string, string, int *, int);
+static string filterJson(string, int*);
 static string extracttokenAt(const string __restrict__ , int *);
 static void FreeTokenList(TokenList *);
 static JToken *ParseJTokenFromString(string);
@@ -20,10 +21,10 @@ static TokenList *NewTokenList();
 static void AppendTokenList(TokenList*, JToken*);
 
 JObject *JsonDeserialize(string jsonstr) {
+    int jsonLen = 0, len;
     TokenList *tokenlst;
-    if(jsonstr[0] != '{') return NULL;
-    int len = strlen(jsonstr);
-    if(jsonstr[len - 1] != '}') return NULL;
+
+    if(filterJson(jsonstr, &len) == NULL) return NULL;
     tokenlst = GetTokenList(jsonstr);
     // if(!istokenformat(jsonstr, len)){}
 }
@@ -265,6 +266,9 @@ static string filterJson(string jsonStr, int* len) {
     int filteredIndex = 0;
     bool llevel = false;
     *len = strlen(jsonStr);
+
+    if(jsonStr[0] != '{' && jsonStr[*len -1] != '}') return NULL;
+
     string filteredJson = (string)calloc(*len,sizeof(char));
     for (int i = 0; i < *len; i++){
         if(jsonStr[i] == '\"' && !llevel) {
