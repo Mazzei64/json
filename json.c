@@ -376,13 +376,10 @@ static JToken *ParseJTokenFromString(string tkstr) {
         ((byte*)valueBuffer)[valIndex] = tkstr[index];
         addressJobj = JsonDeserialize((string)valueBuffer);
         free((string)valueBuffer);
-        // valueBuffer = NULL;
         valueBuffer = addressJobj;
-        printf("val: %p\n", valueBuffer);
     }
     else if(tkstr[index] == '['){
         token->value_type = ARRAY;
-        index++;
         while (*((unsigned short*)(&tkstr[index])) != 0x5d ) { 
             if((valIndex + 1) % tkstrLen == 0)
                 _key = (string)realloc(_key, sizeof(char)*((valIndex + 1) + tkstrLen));
@@ -391,7 +388,8 @@ static JToken *ParseJTokenFromString(string tkstr) {
             valIndex++;
             index++;
         }
-        
+        ((byte*)valueBuffer)[valIndex] = tkstr[index];
+        valIndex++;
     }
     else if(tkstr[index] >= 0x30 && tkstr[index] <= 0x39){
         token->value_type = INTEGER;

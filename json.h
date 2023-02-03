@@ -10,6 +10,11 @@ typedef enum {false = 0, true} bool;
 typedef enum {STRING = 0, JSON_OBJ, ARRAY, INTEGER, DECIMAL, BOOLEAN} jsontype;
 
 typedef struct {
+    void *data;
+    jsontype *data_type;
+} JsonArray;
+
+typedef struct {
     string key;
     void *value;
     jsontype value_type;
