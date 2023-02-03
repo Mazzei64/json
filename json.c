@@ -354,7 +354,7 @@ static JToken *ParseJTokenFromString(string tkstr) {
         index++;
         while (*((unsigned short*)(&tkstr[index])) != 0x22 ) { 
             if((valIndex + 1) % tkstrLen == 0)
-                _key = (string)realloc(_key, sizeof(char)*((valIndex + 1) + tkstrLen));
+                valueBuffer = (byte*)realloc(valueBuffer, sizeof(char)*((valIndex + 1) + tkstrLen));
             
             ((byte*)valueBuffer)[valIndex] = tkstr[index];
             valIndex++;
@@ -367,7 +367,7 @@ static JToken *ParseJTokenFromString(string tkstr) {
         token->value_type = JSON_OBJ;
         while (*((unsigned short*)(&tkstr[index])) != 0x7d ) { 
             if((valIndex + 1) % tkstrLen == 0)
-                _key = (string)realloc(_key, sizeof(char)*((valIndex + 1) + tkstrLen));
+                valueBuffer = (byte*)realloc(valueBuffer, sizeof(char)*((valIndex + 1) + tkstrLen));
             
             ((byte*)valueBuffer)[valIndex] = tkstr[index];
             valIndex++;
@@ -382,7 +382,7 @@ static JToken *ParseJTokenFromString(string tkstr) {
         token->value_type = ARRAY;
         while (*((unsigned short*)(&tkstr[index])) != 0x5d ) { 
             if((valIndex + 1) % tkstrLen == 0)
-                _key = (string)realloc(_key, sizeof(char)*((valIndex + 1) + tkstrLen));
+                valueBuffer = (byte*)realloc(valueBuffer, sizeof(char)*((valIndex + 1) + tkstrLen));
             
             ((byte*)valueBuffer)[valIndex] = tkstr[index];
             valIndex++;
@@ -395,7 +395,7 @@ static JToken *ParseJTokenFromString(string tkstr) {
         token->value_type = INTEGER;
         while (tkstr[index] != '\0' ) { // '\0' + ']'
             if((valIndex + 1) % tkstrLen == 0)
-                _key = (string)realloc(_key, sizeof(char)*((valIndex + 1) + tkstrLen));
+                valueBuffer = (byte*)realloc(valueBuffer, sizeof(char)*((valIndex + 1) + tkstrLen));
             
             ((byte*)valueBuffer)[valIndex] = tkstr[index];
             valIndex++;
@@ -406,7 +406,7 @@ static JToken *ParseJTokenFromString(string tkstr) {
         token->value_type = BOOLEAN;
         while (tkstr[index] != '\0' ) { // '\0' + ']'
             if((valIndex + 1) % tkstrLen == 0)
-                _key = (string)realloc(_key, sizeof(char)*((valIndex + 1) + tkstrLen));
+                valueBuffer = (byte*)realloc(valueBuffer, sizeof(char)*((valIndex + 1) + tkstrLen));
             
             ((byte*)valueBuffer)[valIndex] = tkstr[index];
             valIndex++;
