@@ -22,11 +22,16 @@ static void AppendTokenList(TokenList*, JToken*);
 
 JObject *JsonDeserialize(string jsonstr) {
     int jsonLen = 0, len;
-    TokenList *tokenlst;
+    string filteredJson;
+    JObject* jsonObject;
 
-    if(filterJson(jsonstr, &len) == NULL) return NULL;
-    tokenlst = GetTokenList(jsonstr);
-    // if(!istokenformat(jsonstr, len)){}
+    if((filteredJson = filterJson(jsonstr, &len)) == NULL) return NULL;
+
+    jsonObject = (JObject*)calloc(1, sizeof(JObject));
+    
+    jsonObject->jtoken_list = GetTokenList(filteredJson);
+
+    return jsonObject;
 }
 
 // ------------------------------------------------------------------
@@ -48,6 +53,7 @@ TokenList *GetTokenList(string jsonstr) {
         }
         token = ParseJTokenFromString(tk);
         AppendTokenList(tklst, token);
+        index++;
     }
     return tklst;
 }
@@ -151,6 +157,7 @@ static void findvalue(string jsonstr, string token, int *index, int count) {
         if(jsonstr[*index] == '{') {
             CHECKTK_OVERFLOW(count)
             token[count] = jsonstr[*index];
+            token[count + 1] = '\0';
             *index = *index + 1; 
             count++;
             while (true) {
@@ -159,15 +166,18 @@ static void findvalue(string jsonstr, string token, int *index, int count) {
                 else if(jsonstr[*index] == '}' && llevel) llevel = false;
                 else if(jsonstr[*index] == '}' && !llevel) {
                     token[count] = jsonstr[*index];
+                    token[count + 1] = '\0';
                     *index = *index + 1; 
                     count++;
                     break;
                 }
                 else if (jsonstr[*index] == '\0') {
                     token[count] = jsonstr[*index];
+                    token[count + 1] = '\0';
                     break;
                 }
                 token[count] = jsonstr[*index];
+                token[count + 1] = '\0';
                 *index = *index + 1; 
                 count++;
             }
@@ -176,6 +186,7 @@ static void findvalue(string jsonstr, string token, int *index, int count) {
         else if(jsonstr[*index] == '[') {
             CHECKTK_OVERFLOW(count)
             token[count] = jsonstr[*index];
+            token[count + 1] = '\0';
             *index = *index + 1; 
             count++;
             while (true) {
@@ -184,15 +195,18 @@ static void findvalue(string jsonstr, string token, int *index, int count) {
                 else if(jsonstr[*index] == ']' && llevel) llevel = false;
                 else if(jsonstr[*index] == ']' && !llevel) {
                     token[count] = jsonstr[*index];
+                    token[count + 1] = '\0';
                     *index = *index + 1; 
                     count++;
                     break;
                 }
                 else if (jsonstr[*index] == '\0') {
                     token[count] = jsonstr[*index];
+                    token[count + 1] = '\0';
                     break;
                 }
                 token[count] = jsonstr[*index];
+                token[count + 1] = '\0';
                 *index = *index + 1; 
                 count++;
             }
@@ -201,58 +215,61 @@ static void findvalue(string jsonstr, string token, int *index, int count) {
         else if(jsonstr[*index] == '\"') {
             CHECKTK_OVERFLOW(count)
             token[count] = jsonstr[*index];
+            token[count + 1] = '\0';
             *index = *index + 1; 
             count++;
             while (jsonstr[*index] != '\"') {
                 CHECKTK_OVERFLOW(count)
                 token[count] = jsonstr[*index];
+                token[count + 1] = '\0';
                 *index = *index + 1; 
                 count++;
                 if(jsonstr[*index] == '\0') {
                     token[count] = jsonstr[*index];
+                    token[count + 1] = '\0';
                     break;
                 }
             }
             CHECKTK_OVERFLOW(count)
             token[count] = jsonstr[*index];
+            token[count + 1] = '\0';
             *index = *index + 1; 
             count++;
             break;
         }
         else if(*((unsigned int*)&jsonstr[*index]) == ASCII_TRUE) {
                     CHECKTK_OVERFLOW(count)
-                    token[count] = jsonstr[*index];
-                    *index = *index + 1; 
-                    count++;
-                    *((unsigned int*)&jsonstr[*index]) = ASCII_TRUE;
+                    *((unsigned int*)&token[count]) = ASCII_TRUE;
+                    count += 4;
+                    token[count + 1] = '\0';
                     *index = *index + 4;
-                    count +=4;
                     CHECKTK_OVERFLOW(count)
                     break;
         }
         else if (*((unsigned int*)&jsonstr[*index]) == ASCII_FALSE) {
             CHECKTK_OVERFLOW(count)
-            token[count] = jsonstr[*index];
-            *index = *index + 1; 
-            count++;
-            *((unsigned int*)&jsonstr[*index]) = ASCII_FALSE;
+            *((unsigned int*)&token[count]) = ASCII_FALSE;
+            count += 4;
+            token[count + 1] = '\0';
             *index = *index + 4;
-            count +4;
             CHECKTK_OVERFLOW(count)
             break;
         }
         else if(jsonstr[*index] >= 0x30 && jsonstr[*index] <= 0x39) {
             CHECKTK_OVERFLOW(count)
             token[count] = jsonstr[*index];
+            token[count + 1] = '\0';
             *index = *index + 1; 
             count++;
             while (jsonstr[*index] != ',' && jsonstr[*index] != '}') {
                 CHECKTK_OVERFLOW(count)
                 token[count] = jsonstr[*index];
+                token[count + 1] = '\0';
                 *index = *index + 1; 
                 count++;
                 if (jsonstr[*index] == '\0') {
                     token[count] = jsonstr[*index];
+                    token[count + 1] = '\0';
                     break;
                 }
             }
@@ -314,69 +331,91 @@ static void FreeTokenList(TokenList *tklst){
 }
 
 static JToken *ParseJTokenFromString(string tkstr) {
-    int index = 1, valIndex = 0, tkstrLen;
+    int index = 1, valIndex = 0, tkstrLen = strlen(tkstr);
     bool isDecimal = false;
     byte *valueBuffer = (byte*)calloc(tkstrLen, sizeof(char));
-    memset(valueBuffer, 0x00, sizeof(byte)*tkstrLen);
     string _key = (string)calloc(16, sizeof(char));
     JToken *token = (JToken*)malloc(sizeof(JToken));
-    while (tkstr[index] == '\"') {
-        if((index - 1) % 16 == 0)
-            _key = (string)realloc(_key, sizeof(char)*(16 + (index - 1)));
+    while (tkstr[index] != '\"') {
+        if(index % 16 == 0)
+            _key = (string)realloc(_key, sizeof(char)*(index + 16));
 
-        _key[index - 1] = tkstr[index];
+        _key[valIndex] = tkstr[index];
         index++;
+        valIndex++;
     }
     token->key = _key;
-    token->key_len = index;
-    index = index + 2;
+    token->key_len = index - 1;
+    index += 2;
+    valIndex = 0;
+
     if(tkstr[index] == '\"'){
         token->value_type = STRING;
-        while (tkstr[index + 1] != '\0' && tkstr[index] == '\"') {
+        index++;
+        while (*((unsigned short*)(&tkstr[index])) != 0x22 ) { 
+            if((valIndex + 1) % tkstrLen == 0)
+                _key = (string)realloc(_key, sizeof(char)*((valIndex + 1) + tkstrLen));
+            
             valueBuffer[valIndex] = tkstr[index];
-            index++;
             valIndex++;
-        }    
+            index++;
+        }
+        
     }
-    else if(tkstr[index] == '{') {
+    else if(tkstr[index] == '{'){
         token->value_type = JSON_OBJ;
-        while (tkstr[index + 1] != '\0' && tkstr[index] == '}') {
+        index++;
+        while (*((unsigned short*)(&tkstr[index])) != 0x7d ) { 
+            if((valIndex + 1) % tkstrLen == 0)
+                _key = (string)realloc(_key, sizeof(char)*((valIndex + 1) + tkstrLen));
+            
             valueBuffer[valIndex] = tkstr[index];
-            index++;
             valIndex++;
+            index++;
         }
+        
     }
-    else if(tkstr[index] == '[') {
+    else if(tkstr[index] == '['){
         token->value_type = ARRAY;
-        while (tkstr[index + 1] != '\0' && tkstr[index] == ']') {
+        index++;
+        while (*((unsigned short*)(&tkstr[index])) != 0x5d ) { 
+            if((valIndex + 1) % tkstrLen == 0)
+                _key = (string)realloc(_key, sizeof(char)*((valIndex + 1) + tkstrLen));
+            
             valueBuffer[valIndex] = tkstr[index];
-            index++;
             valIndex++;
+            index++;
+        }
+        
+    }
+    else if(tkstr[index] >= 0x30 && tkstr[index] <= 0x39){
+        token->value_type = INTEGER;
+        while (tkstr[index] != '\0' ) { // '\0' + ']'
+            if((valIndex + 1) % tkstrLen == 0)
+                _key = (string)realloc(_key, sizeof(char)*((valIndex + 1) + tkstrLen));
+            
+            valueBuffer[valIndex] = tkstr[index];
+            valIndex++;
+            index++;
         }
     }
-    else if(tkstr[index] >= 0x30 || tkstr[index] <= 0x39) {
-        while (tkstr[index] != '\0') {
-            if(tkstr[index] == '.') isDecimal = true;
-            valueBuffer[valIndex] = tkstr[index];
-            index++;
-            valIndex++;
-        }
-        if(!isDecimal) {
-            token->value_type = INTEGER;
-        }
-        else
-            token->value_type = DECIMAL;
-    }
-    else if(tkstr[index] == 't' || tkstr[index] == 'f') {
+    else if(tkstr[index] == 't' || tkstr[index] == 'f'){
         token->value_type = BOOLEAN;
-        while (tkstr[index] != '\0') {
+        while (tkstr[index] != '\0' ) { // '\0' + ']'
+            if((valIndex + 1) % tkstrLen == 0)
+                _key = (string)realloc(_key, sizeof(char)*((valIndex + 1) + tkstrLen));
+            
             valueBuffer[valIndex] = tkstr[index];
-            index++;
             valIndex++;
+            index++;
         }
     }
+
+    token->value = valueBuffer;
     token->value_byte_count = valIndex + 1;
-    token->value = (void*)valueBuffer;
+
+    return token;
+    
 }
 static TokenList *NewTokenList() {
     static const unsigned char tokenListInitialSize = 16;
@@ -387,8 +426,9 @@ static TokenList *NewTokenList() {
 }
 static void AppendTokenList(TokenList *tklst, JToken *token) {
     if(tklst->count == tklst->size) {
-        tklst->size = tklst->size + tklst->size;
-        tklst->tokens = (JToken**)realloc(tklst->tokens, sizeof(JToken*) * tklst->size);
+        tklst->size = tklst->size + 16;
+        tklst->tokens = (JToken**)realloc(tklst->tokens, sizeof(JToken*) * (tklst->size + 16));
     }
     tklst->tokens[tklst->count] = token;
+    tklst->count++;
 }

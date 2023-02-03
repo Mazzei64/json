@@ -25,8 +25,6 @@ typedef struct {
 
 typedef struct {
     TokenList *jtoken_list;
-    unsigned int jobj_list_count;
-    unsigned int jtoken_list_count;
 } JObject;
 
 extern JObject *JsonDeserialize(string);
