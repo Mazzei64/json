@@ -10,8 +10,10 @@ typedef enum {false = 0, true} bool;
 typedef enum {STRING = 0, JSON_OBJ, ARRAY, INTEGER, DECIMAL, BOOLEAN} jsontype;
 
 typedef struct {
-    void *data;
+    size_t *data;
     jsontype *data_type;
+    unsigned int count;
+    unsigned int elements_size;
 } JsonArray;
 
 typedef struct {

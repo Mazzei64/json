@@ -10,6 +10,8 @@
 
 static const unsigned int DEFAULT_TOKEN_LEN = 16;
 
+static void AddDataToJArray(JsonArray*, void*);
+static JsonArray *CreateJArrayFromStream(byte*);
 static bool istokenformat(string);
 static int findkey(string, string, int *);
 static void findvalue(string, string, int *, int);
@@ -17,6 +19,7 @@ static string filterJson(string, int*);
 static string extracttokenAt(const string __restrict__ , int *);
 static void FreeTokenList(TokenList *);
 static JToken *ParseJTokenFromString(string);
+static JsonArray *NewJsonArray();
 static TokenList *NewTokenList();
 static void AppendTokenList(TokenList*, JToken*);
 
@@ -60,6 +63,73 @@ TokenList *GetTokenList(string jsonstr) {
 
 // ------------------------------------------------------------------
 
+static void AddDataToJArray(JsonArray *array, void *data) {
+    int index;
+    byte initVal = ((byte*)data)[0];
+    if(initVal == '\"') {
+        index = 1;
+        array->data_type[array->count] = STRING;
+        while (((byte*)data)[index] != '\"') index++;
+        array->data[array->count] = (unsigned long int)calloc(index - 1, sizeof(char));
+        index = 1;
+        while (((byte*)data)[index] != '\"') {
+            ((string)array->data[array->count])[index - 1] = ((byte*)data)[index];
+            index++;
+        }
+    }
+    else if(initVal == '{') {
+        array->data_type[array->count] = JSON_OBJ;
+        array->data[array->count] = (size_t)JsonDeserialize((string)data);
+    }
+    else if (initVal == '[') {
+        array->data_type[array->count] = ARRAY;
+        array->data[array->count] = (size_t)CreateJArrayFromStream((byte*)data);
+    }
+    else if (initVal > 0x29 && initVal < 0x40) {
+        index = 0;
+        array->data_type[array->count] = INTEGER;
+        array->data[array->count] = (size_t)calloc(32, sizeof(byte));
+        while (((byte*)data)[index] != '\0') {
+            if(index % 32 == 0)
+                array->data[array->count] = (size_t)realloc((void*)array->data[array->count], sizeof(byte)*(index + 32));
+
+            ((byte*)array->data[array->count])[index] = ((byte*)data)[index];
+            index++;
+        }
+    }
+    else if (initVal == 't' || initVal == 'f') {
+        index = 0;
+        array->data_type[array->count] = BOOLEAN;
+        array->data[array->count] = initVal == 't' ? ASCII_TRUE : ASCII_FALSE;
+    }
+
+    array->count++;
+    if(array->count == array->elements_size) {
+        array->elements_size += 32;
+        array->data = realloc(array->data, sizeof(size_t)*array->elements_size);
+        array->data_type = (jsontype*)realloc(array->data, sizeof(jsontype)*array->elements_size);
+    }
+        
+}
+static JsonArray *CreateJArrayFromStream(byte* jastr) {
+    int valIndex = 0;
+    JsonArray* array = NewJsonArray();
+    void *valueBuffer = (byte*)calloc(256, sizeof(char));
+    int index = 1;
+    while (*((unsigned short*)(&jastr[index])) != 0x5d ) { 
+        if((valIndex + 1) % 256 == 0)
+            valueBuffer = (byte*)realloc(valueBuffer, sizeof(char)*((valIndex + 1) + 256));
+        
+        ((byte*)valueBuffer)[valIndex] = jastr[index];
+        valIndex++;
+        index++;
+        if(jastr[index] == ',' || *((unsigned short*)(&jastr[index])) != 0x5d) {
+            AddDataToJArray(array, valueBuffer);
+            memset(valueBuffer, 0x00, valIndex+1);
+            valIndex = 0;
+        }
+    }
+}
 static bool istokenformat(string jsonstr) {
     bool eol;
     bool symbolsFound[3] = {false, false, false};
@@ -329,7 +399,6 @@ static void FreeTokenList(TokenList *tklst){
     tklst->size = 0;
     free(tklst);
 }
-
 static JToken *ParseJTokenFromString(string tkstr) {
     int index = 1, valIndex = 0, tkstrLen = strlen(tkstr);
     bool isDecimal = false;
@@ -380,6 +449,8 @@ static JToken *ParseJTokenFromString(string tkstr) {
     }
     else if(tkstr[index] == '['){
         token->value_type = ARRAY;
+        JsonArray *array = NewJsonArray();
+        index++;
         while (*((unsigned short*)(&tkstr[index])) != 0x5d ) { 
             if((valIndex + 1) % tkstrLen == 0)
                 valueBuffer = (byte*)realloc(valueBuffer, sizeof(char)*((valIndex + 1) + tkstrLen));
@@ -387,9 +458,15 @@ static JToken *ParseJTokenFromString(string tkstr) {
             ((byte*)valueBuffer)[valIndex] = tkstr[index];
             valIndex++;
             index++;
+            if(tkstr[index] == ',' || *((unsigned short*)(&tkstr[index])) == 0x5d) {
+                AddDataToJArray(array, valueBuffer);
+                memset(valueBuffer, 0x00, valIndex+1);
+                valIndex = 0;
+                if(tkstr[index] == ',') index++;
+            }
         }
-        ((byte*)valueBuffer)[valIndex] = tkstr[index];
-        valIndex++;
+        free((string)valueBuffer);
+        valueBuffer = array;
     }
     else if(tkstr[index] >= 0x30 && tkstr[index] <= 0x39){
         token->value_type = INTEGER;
@@ -419,6 +496,14 @@ static JToken *ParseJTokenFromString(string tkstr) {
 
     return token;
     
+}
+static JsonArray *NewJsonArray() {
+    JsonArray* array = (JsonArray*)calloc(1, sizeof(JsonArray));
+    array->elements_size = 32;
+    array->data = calloc(array->elements_size, sizeof(size_t));
+    array->data_type = (jsontype*)calloc(array->elements_size, sizeof(jsontype));
+    array->count = 0;
+    return array;
 }
 static TokenList *NewTokenList() {
     static const unsigned char tokenListInitialSize = 16;
