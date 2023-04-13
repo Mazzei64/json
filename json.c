@@ -62,6 +62,9 @@ TokenList *GetTokenList(string jsonstr) {
     JToken *token = NULL;
     TokenList *tklst = NewTokenList();
     while (jsonstr[index] != '\0') {
+        if(index > 600) {
+            int f = 5;
+        }
         if((tk = extracttokenAt(jsonstr, &index)) == NULL) {
             FreeTokenList(tklst);
             return NULL;
@@ -70,8 +73,6 @@ TokenList *GetTokenList(string jsonstr) {
             FreeTokenList(tklst);
             return NULL;
         }
-
-        // there might be a bug in ParseJTokenFromString... verify second interation from test_some.c
         token = ParseJTokenFromString(tk);
         AppendTokenList(tklst, token);
         index++;
@@ -148,6 +149,7 @@ static JsonArray *CreateJArrayFromStream(byte* jastr) {
         }
     }
 }
+
 static bool istokenformat(string jsonstr) {
     bool eol;
     bool symbolsFound[3] = {false, false, false};
@@ -162,7 +164,8 @@ static bool istokenformat(string jsonstr) {
                 *((unsigned short*)(&jsonstr[index + 1])) != 0x5b3a &&
                 *((unsigned short*)(&jsonstr[index + 1])) != 0x223a &&
                 *((unsigned short*)(&jsonstr[index + 1])) != 0x743a &&
-                *((unsigned short*)(&jsonstr[index + 1])) != 0x663a) &&
+                *((unsigned short*)(&jsonstr[index + 1])) != 0x663a &&
+                *((unsigned short*)(&jsonstr[index + 1])) != 0x2d3a) &&
                 (jsonstr[index + 2] < 0x30 || jsonstr[index + 2] > 0x39)) marker = -1;
             else {
                 marker++;
@@ -182,7 +185,7 @@ static bool istokenformat(string jsonstr) {
             marker++;
             symbolsFound[2] = true;
         }
-        else if (jsonstr[index] >= 0x30 && jsonstr[index] <= 0x39 && marker == 2){
+        else if (((jsonstr[index] >= 0x30 && jsonstr[index] <= 0x39) || jsonstr[index] == '-') && marker == 2){
             index++;
             while (jsonstr[index] != '\0') {
                 if((jsonstr[index] < 0x30 || jsonstr[index] > 0x39) && jsonstr[index] != '.') marker = -1;
@@ -344,7 +347,7 @@ static void findvalue(string jsonstr, string token, int *index, int count) {
             CHECKTK_OVERFLOW(count)
             break;
         }
-        else if(jsonstr[*index] >= 0x30 && jsonstr[*index] <= 0x39) {
+        else if((jsonstr[*index] >= 0x30 && jsonstr[*index] <= 0x39) || jsonstr[*index] == '-') {
             CHECKTK_OVERFLOW(count)
             token[count] = jsonstr[*index];
             token[count + 1] = '\0';
