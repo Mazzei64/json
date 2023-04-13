@@ -23,14 +23,27 @@ static JsonArray *NewJsonArray();
 static TokenList *NewTokenList();
 static void AppendTokenList(TokenList*, JToken*);
 
+/*
+    This is the main Public deserializing function for the Json library.
+    This is meant for passing a stringified Json object and return the reference for
+    the JObject object instantiated in memory.
+*/
 JObject *JsonDeserialize(string jsonstr) {
-    int jsonLen = 0, len;
+    int jsonLen = 0, len = 0;
     string filteredJson;
     JObject* jsonObject;
 
+    /*
+        First filter the json string with the filterJson private method and return the filtered version or
+        NULL in case of error.
+    */
     if((filteredJson = filterJson(jsonstr, &len)) == NULL) return NULL;
 
+    /*
+        Instantiate the Object.         
+    */
     jsonObject = (JObject*)calloc(1, sizeof(JObject));
+    
     
     jsonObject->jtoken_list = GetTokenList(filteredJson);
 
@@ -39,6 +52,9 @@ JObject *JsonDeserialize(string jsonstr) {
 
 // ------------------------------------------------------------------
 
+/*
+    This is the 
+*/
 
 TokenList *GetTokenList(string jsonstr) {
     int index = 1, count = 0;
@@ -54,6 +70,8 @@ TokenList *GetTokenList(string jsonstr) {
             FreeTokenList(tklst);
             return NULL;
         }
+
+        // there might be a bug in ParseJTokenFromString... verify second interation from test_some.c
         token = ParseJTokenFromString(tk);
         AppendTokenList(tklst, token);
         index++;
@@ -61,7 +79,7 @@ TokenList *GetTokenList(string jsonstr) {
     return tklst;
 }
 
-// ------------------------------------------------------------------
+// ---------------------------- PRIVATE --------------------------------------
 
 static void AddDataToJArray(JsonArray *array, void *data) {
     int index;
@@ -320,6 +338,7 @@ static void findvalue(string jsonstr, string token, int *index, int count) {
             CHECKTK_OVERFLOW(count)
             *((unsigned int*)&token[count]) = ASCII_FALSE;
             count += 4;
+            token[count] = 'e';
             token[count + 1] = '\0';
             *index = *index + 4;
             CHECKTK_OVERFLOW(count)
@@ -354,10 +373,10 @@ static string filterJson(string jsonStr, int* len) {
     bool llevel = false;
     *len = strlen(jsonStr);
 
-    if(jsonStr[0] != '{' && jsonStr[*len -1] != '}') return NULL;
+    if(jsonStr[0] != '{' && jsonStr[*len -1] != '}' && jsonStr[0] != '[' && jsonStr[*len -1] != ']') return NULL;
 
     string filteredJson = (string)calloc(*len,sizeof(char));
-    for (int i = 0; i < *len; i++){
+    for (int i = 0; i < *len; i++){  
         if(jsonStr[i] == '\"' && !llevel) {
             llevel = true;
             filteredJson[filteredIndex] = jsonStr[i];
