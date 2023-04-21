@@ -57,25 +57,23 @@ JObject *JsonDeserialize(string jsonstr) {
 */
 
 TokenList *GetTokenList(string jsonstr) {
-    int index = 1, count = 0;
+    int index = 1, count = 0, debug = 0;
     string tk = NULL;
     JToken *token = NULL;
     TokenList *tklst = NewTokenList();
     while (jsonstr[index] != '\0') {
-        if(index > 600) {
-            int f = 5;
-        }
         if((tk = extracttokenAt(jsonstr, &index)) == NULL) {
             FreeTokenList(tklst);
             return NULL;
         }
-        if(!istokenformat(tk)) {
-            FreeTokenList(tklst);
-            return NULL;
-        }
+        // if(!istokenformat(tk)) {
+        //     FreeTokenList(tklst);
+        //     return NULL;
+        // }
         token = ParseJTokenFromString(tk);
         AppendTokenList(tklst, token);
         index++;
+        debug++;
     }
     return tklst;
 }
@@ -282,8 +280,11 @@ static void findvalue(string jsonstr, string token, int *index, int count) {
             count++;
             while (true) {
                 CHECKTK_OVERFLOW(count)
-                if(jsonstr[*index] == '[' && !llevel) llevel = true;
-                else if(jsonstr[*index] == ']' && llevel) llevel = false;
+                if(jsonstr[*index - 1] == '[' && !llevel) llevel = true;
+                else if(jsonstr[*index] == ']' && llevel) {
+                    llevel = false;
+                    continue;
+                }
                 else if(jsonstr[*index] == ']' && !llevel) {
                     token[count] = jsonstr[*index];
                     token[count + 1] = '\0';
@@ -343,11 +344,12 @@ static void findvalue(string jsonstr, string token, int *index, int count) {
             count += 4;
             token[count] = 'e';
             token[count + 1] = '\0';
-            *index = *index + 4;
+            *index = *index + 5;
             CHECKTK_OVERFLOW(count)
             break;
         }
-        else if((jsonstr[*index] >= 0x30 && jsonstr[*index] <= 0x39) || jsonstr[*index] == '-') {
+        else if((jsonstr[*index] >= 0x30 && jsonstr[*index] <= 0x39) ||
+                 (jsonstr[*index] == '-' && (jsonstr[*index + 1] >= 0x30 && jsonstr[*index + 1] <= 0x39))) {
             CHECKTK_OVERFLOW(count)
             token[count] = jsonstr[*index];
             token[count + 1] = '\0';
@@ -469,6 +471,10 @@ static JToken *ParseJTokenFromString(string tkstr) {
         free((string)valueBuffer);
         valueBuffer = addressJobj;
     }
+    /*
+        !BUG: Array parsing isn't treating each comma separated element as a different type and recursively instantiating new objects.
+
+    */
     else if(tkstr[index] == '['){
         token->value_type = ARRAY;
         JsonArray *array = NewJsonArray();
@@ -490,7 +496,8 @@ static JToken *ParseJTokenFromString(string tkstr) {
         free((string)valueBuffer);
         valueBuffer = array;
     }
-    else if(tkstr[index] >= 0x30 && tkstr[index] <= 0x39){
+    else if((tkstr[index] >= 0x30 && tkstr[index] <= 0x39) ||
+             (tkstr[index] == '-' && (tkstr[index + 1] >= 0x30 && tkstr[index + 1] <= 0x39))){
         token->value_type = INTEGER;
         while (tkstr[index] != '\0' ) { // '\0' + ']'
             if((valIndex + 1) % tkstrLen == 0)
