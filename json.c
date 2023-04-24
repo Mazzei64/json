@@ -14,7 +14,7 @@ static void AddDataToJArray(JsonArray*, void*);
 static JsonArray *CreateJArrayFromStream(byte*);
 static bool istokenformat(string);
 static int findkey(string, string, int *);
-static void findvalue(string, string, int *, int);
+static String* findvalue(string, string, int *, int);
 static string filterJson(string, int*);
 static string extracttokenAt(const string __restrict__ , int *);
 static void FreeTokenList(TokenList *);
@@ -239,70 +239,98 @@ static int findkey(string jsonstr, string token, int *index){
     return count;
 }
 
-static void findvalue(string jsonstr, string token, int *index, int count) {
+static String* extractJArray(string jsonstr, int init) {
+    if(jsonstr[0] != '[') return NULL;
+
+    int index = init;
+    bool llevel = false;
+    string token = calloc(DEFAULT_TOKEN_LEN, sizeof(char));
+    String* tkArray = calloc(1, sizeof(String));
+
+    CHECKTK_OVERFLOW(index)
+    token[index] = jsonstr[index];
+    token[index + 1] = '\0';
+    index++; 
+        while (true) {
+            CHECKTK_OVERFLOW(index)
+            if(jsonstr[index - 1] == '[' && !llevel) llevel = true;
+            else if(jsonstr[index] == ']' && llevel) {
+                llevel = false;
+                continue;
+            }
+            else if(jsonstr[index] == ']' && !llevel) {
+                token[index] = jsonstr[index];
+                token[index + 1] = '\0';
+                index++; 
+                break;
+            }
+            else if (jsonstr[index] == '\0') {
+                token[index] = jsonstr[index];
+                token[index + 1] = '\0';
+                break;
+            }
+            token[index] = jsonstr[index];
+            token[index + 1] = '\0';
+            index++; 
+        }
+
+    tkArray->str = token;
+    tkArray->len = index + 1;
+
+    return tkArray;
+}
+
+static String* extractJObj(string jsonstr, int init) {
+    if(jsonstr[0] != '{') return NULL;
+
+    int index = init;
+    bool llevel = false;
+    string token = calloc(DEFAULT_TOKEN_LEN, sizeof(char));
+    String* tkArray = calloc(1, sizeof(String));
+
+    CHECKTK_OVERFLOW(index)
+    token[index] = jsonstr[index];
+    token[index + 1] = '\0';
+    index++; 
+        while (true) {
+            CHECKTK_OVERFLOW(index)
+            if(jsonstr[index - 1] == '{' && !llevel) llevel = true;
+            else if(jsonstr[index] == '}' && llevel) {
+                llevel = false;
+                continue;
+            }
+            else if(jsonstr[index] == '}' && !llevel) {
+                token[index] = jsonstr[index];
+                token[index + 1] = '\0';
+                index++; 
+                break;
+            }
+            else if (jsonstr[index] == '\0') {
+                token[index] = jsonstr[index];
+                token[index + 1] = '\0';
+                break;
+            }
+            token[index] = jsonstr[index];
+            token[index + 1] = '\0';
+            index++; 
+        }
+
+    tkArray->str = token;
+    tkArray->len = index + 1;
+
+    return tkArray;
+}
+
+static String* findvalue(string jsonstr, int *index) {
     bool flag = true, llevel = false;
     int marker = 1;
     while (flag) {
         if(jsonstr[*index] == '{') {
-            CHECKTK_OVERFLOW(count)
-            token[count] = jsonstr[*index];
-            token[count + 1] = '\0';
-            *index = *index + 1; 
-            count++;
-            while (true) {
-                CHECKTK_OVERFLOW(count)
-                if(jsonstr[*index] == '{' && !llevel) llevel = true;
-                else if(jsonstr[*index] == '}' && llevel) llevel = false;
-                else if(jsonstr[*index] == '}' && !llevel) {
-                    token[count] = jsonstr[*index];
-                    token[count + 1] = '\0';
-                    *index = *index + 1; 
-                    count++;
-                    break;
-                }
-                else if (jsonstr[*index] == '\0') {
-                    token[count] = jsonstr[*index];
-                    token[count + 1] = '\0';
-                    break;
-                }
-                token[count] = jsonstr[*index];
-                token[count + 1] = '\0';
-                *index = *index + 1; 
-                count++;
-            }
-            break;
+            return extractJObj(jsonstr, *index);
         }
         else if(jsonstr[*index] == '[') {
-            CHECKTK_OVERFLOW(count)
-            token[count] = jsonstr[*index];
-            token[count + 1] = '\0';
-            *index = *index + 1; 
-            count++;
-            while (true) {
-                CHECKTK_OVERFLOW(count)
-                if(jsonstr[*index - 1] == '[' && !llevel) llevel = true;
-                else if(jsonstr[*index] == ']' && llevel) {
-                    llevel = false;
-                    continue;
-                }
-                else if(jsonstr[*index] == ']' && !llevel) {
-                    token[count] = jsonstr[*index];
-                    token[count + 1] = '\0';
-                    *index = *index + 1; 
-                    count++;
-                    break;
-                }
-                else if (jsonstr[*index] == '\0') {
-                    token[count] = jsonstr[*index];
-                    token[count + 1] = '\0';
-                    break;
-                }
-                token[count] = jsonstr[*index];
-                token[count + 1] = '\0';
-                *index = *index + 1; 
-                count++;
-            }
-            break;
+            String* tkArray = extractJArray(jsonstr, *index);
+            return tkArray;
         }
         else if(jsonstr[*index] == '\"') {
             CHECKTK_OVERFLOW(count)
@@ -479,13 +507,23 @@ static JToken *ParseJTokenFromString(string tkstr) {
         token->value_type = ARRAY;
         JsonArray *array = NewJsonArray();
         index++;
-        while (*((unsigned short*)(&tkstr[index])) != 0x5d ) { 
+        while (*((unsigned short*)(&tkstr[index])) != 0x5d ) {
             if((valIndex + 1) % tkstrLen == 0)
                 valueBuffer = (byte*)realloc(valueBuffer, sizeof(char)*((valIndex + 1) + tkstrLen));
-            
+
+            if(tkstr[index] == '[' || tkstr[index] == '{') {
+                int indexState = index;
+                string tk = extracttokenAt(tkstr, &index);
+                valIndex += (index - indexState);
+                strncat((string)valueBuffer, tk, valIndex);
+                free(tk);
+                continue;
+            }
+
             ((byte*)valueBuffer)[valIndex] = tkstr[index];
             valIndex++;
             index++;
+
             if(tkstr[index] == ',' || *((unsigned short*)(&tkstr[index])) == 0x5d) {
                 AddDataToJArray(array, valueBuffer);
                 memset(valueBuffer, 0x00, valIndex+1);

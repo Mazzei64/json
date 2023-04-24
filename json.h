@@ -9,6 +9,8 @@ typedef unsigned char byte;
 typedef enum {false = 0, true} bool;
 typedef enum {STRING = 0, JSON_OBJ, ARRAY, INTEGER, DECIMAL, BOOLEAN} jsontype;
 
+typedef struct {string str; unsigned int len;} String;
+
 typedef struct {
     size_t *data;
     jsontype *data_type;
